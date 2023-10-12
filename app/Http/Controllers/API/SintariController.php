@@ -19,7 +19,7 @@ class SintariController extends Controller
         $user = Pegawai::where('pegawai_id', $user->pegawai_id)->first();
         // $pegawaiPertama = $user->first();
         $tahun = date('Y');
-        $bulan = date('m');
+        $bulan = date('07');
 
         $tanggal_end = cal_days_in_month(CAL_GREGORIAN, $bulan, $tahun);;
 
@@ -61,7 +61,7 @@ class SintariController extends Controller
 
         $a = round(((count($hk)+$liburnas)*100)/$hari_kerja,2);
 
-        //pengurangan 
+        //pengurangan
         $pengurangan = Pengurangan::where('pengurangan_pegawai',$user->pegawai_id)
         ->whereMonth('pengurangan_tanggal',date('07')) //bulan ny ganti suai kebutuhan 'm'
         ->whereYear('pengurangan_tanggal',date('Y')) //tahun ny ganti suai kebutuhan
@@ -96,7 +96,7 @@ class SintariController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'Data Ditemukan',
-            'data' => $tppTotal
+            'data' => $hari_kerja
         ], 200);
 
     }
