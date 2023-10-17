@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    public function register(Request $request) {
+    public function registerUser(Request $request) {
         $rules = [
             'name' => 'required',
             'username' => 'required',
@@ -43,7 +43,7 @@ class AuthController extends Controller
     }
 
 
-    public function login(Request $request)
+    public function loginUser(Request $request)
     {
         $rules = [
             'username' => 'required',
