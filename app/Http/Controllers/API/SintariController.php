@@ -4,100 +4,122 @@ namespace App\Http\Controllers\API;
 
 use App\Models\Libnas;
 use App\Models\Pegawai;
+use App\Models\Realisasi;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
-use App\Models\Pengurangan;
-use App\Models\Realisasi;
+use App\Models\Kalender;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
 
 class SintariController extends Controller
 {
     public function index()
     {
-
-        $user = Auth::user();
-        $user = Pegawai::where('pegawai_id', $user->pegawai_id)->first();
-        // $pegawaiPertama = $user->first();
+        // hitungan kinerja harian
         $tahun = date('Y');
-        $bulan = date('07');
-
-        $tanggal_end = cal_days_in_month(CAL_GREGORIAN, $bulan, $tahun);;
-
+        $bulan = date('09');
+        $tanggal_end = cal_days_in_month(CAL_GREGORIAN, $bulan, $tahun);
         $tgl_awal = date('Y-m-d', strtotime($tahun . "-" . $bulan . "-" . "1"));
         $tgl_akhir = date('Y-m-d', strtotime($tahun . "-" . $bulan . "-" . $tanggal_end));
         $awal = strtotime($tgl_awal);
         $akhir = strtotime($tgl_akhir);
+        $user = Auth::user();
+        $datauser = Pegawai::where('pegawai_id', $user->id_user)->first();
+        $liburnas2 = Libnas::whereMonth('libur_mulai', date('09'))
+            ->whereYear('libur_mulai', date('Y'))
+            ->count();
+        $bulanlalu = strtotime('-1 month');
+        $sebulanlalu = date('06', $bulanlalu);
+        $hariini = date('l, d F Y');
 
-        //libur nasional
-        $liburnas = Libnas::whereMonth('libur_mulai', date('07')) //bulan ny ganti suai kebutuhan 'm'
-            ->whereYear('libur_mulai', date('Y'))->count(); //tahun ny ganti suai kebutuhan
-
-        if ($user->pegawai_absensi == 2 or $user->pegawai_absensi == 3 or $user->pegawai_absensi == 4   or $user->pegawai_opd_gabung == '578') {
+        //hari kerja full bulanan
+        if ($user->pegawai_absensi == 2 or $user->pegawai_absensi == 3 or $user->pegawai_absensi == 4 or $user->pegawai_opd_gabung == '578') {
             $hari_kerja = 0;
             for ($i = $awal; $i <= $akhir; $i += (60 * 60 * 24)) {
-                // $i_date = date("Y-m-d", $i);
-                if (date("N", $i) != "7") {
+                $i_date = date("Y-m-d", $i);
+                if (date("w", $i) != "0") {
                     $hari_kerja++;
                 }
             }
         }
+
         $hari_kerja = 0;
         for ($i = $awal; $i <= $akhir; $i += (60 * 60 * 24)) {
-            // $i_date = date("Y-m-d", $i);
-            if (date("N", $i) != "7"  and date("N", $i) != "6") {
+            $i_date = date("Y-m-d", $i);
+            if (date("w", $i) != "0"  and date("w", $i) != "6") {
                 $hari_kerja++;
             }
         }
 
-        //jumlah absen
-        $hk = DB::table('sintari_kalender_561')
-        ->select('kalender_tanggal', DB::raw('COUNT(*) as jumlah'))
-        ->where('kalender_pegawai', $user->pegawai_id)
-        ->whereMonth('kalender_tanggalmulai', date('07')) //bulan ny ganti suai kebutuhan 'm'
-        ->whereYear('kalender_tanggalmulai', date('Y')) //tahun ny ganti suai kebutuhan
-        ->groupBy('kalender_tanggal')
-        ->orderBy('kalender_tanggal','ASC')
-        ->get();
+        $get_hk = DB::table('sintari_kalender_561')
+            ->select('kalender_tanggal', DB::raw('COUNT(*) as jumlah'))
+            ->where('kalender_pegawai', $datauser->pegawai_id)
+            ->whereYear('kalender_tanggalmulai', date('Y'))
+            ->whereMonth('kalender_tanggalmulai', date('09'))
+            ->groupBy('kalender_tanggal')
+            ->get();
 
-        $a = round(((count($hk)+$liburnas)*100)/$hari_kerja,2);
+        $absensijumlah = (count($get_hk) - $liburnas2);
 
-        //pengurangan
-        $pengurangan = Pengurangan::where('pengurangan_pegawai',$user->pegawai_id)
-        ->whereMonth('pengurangan_tanggal',date('07')) //bulan ny ganti suai kebutuhan 'm'
-        ->whereYear('pengurangan_tanggal',date('Y')) //tahun ny ganti suai kebutuhan
-        ->sum('pengurangan_besar');
+        $persenabsen = round(((count($get_hk) + $liburnas2) * 100) / $hari_kerja, 2);
 
-        //absen persen
-        $persentaseabsen = $a - $pengurangan;
+        // pengurangan
+        $pengurangantotal = DB::table('sintari_pengurangan_7')->where('pengurangan_pegawai', $datauser->pegawai_id)
+            ->whereMonth('pengurangan_tanggal', '09')
+            ->whereYear('pengurangan_tanggal', 'Y')
+            ->sum('pengurangan_besar');
 
-        $tunjangan = round((40/100)*$user->pegawai_tpp,2);
+        $penguranganjumlah = DB::table('sintari_pengurangan_7')->where('pengurangan_pegawai', $datauser->pegawai_id)
+            ->whereMonth('pengurangan_tanggal', '09')
+            ->whereYear('pengurangan_tanggal', 'Y')
+            ->count('pengurangan_besar');
 
-        //hasil akhir
-        $tunjanganasli = round(($tunjangan*$persentaseabsen)/100,2);
+        $absensipersentase = $persenabsen - $pengurangantotal;
 
-        $jumenitkinerja = Realisasi::where('realisasi_user',$user->pegawai_id)
-        ->whereMonth('realisasi_tanggal',date('07')) //bulan ny ganti suai kebutuhan 'm'
-        ->whereYear('realisasi_tanggal',date('Y')) //tahun ny ganti suai kebutuhan
-        ->sum('realisasi_waktu');
+        if($absensipersentase > 100 ){
+            $persentaseabsensi = 100;
+        }else{
+            $persentaseabsensi = $absensipersentase;
+        }
 
-        $menitlibnas = Libnas::whereMonth('libur_mulai',date('07')) //bulan ny ganti suai kebutuhan 'm'
-        ->whereYear('libur_mulai',date('Y'))
-        ->sum('libur_menitpengurangan');
+        $tpp = round((40 / 100) * $datauser->pegawai_tpp, 2);
+        $tppasli = round(($tpp * $absensipersentase) / 100, 2);
+
+        $menitkinerja = Realisasi::where('realisasi_user', $datauser->pegawai_id)
+            ->whereMonth('realisasi_tanggal', date('09')) //bulan ny ganti suai kebutuhan 'm'
+            ->whereYear('realisasi_tanggal', date('Y')) //tahun ny ganti suai kebutuhan
+            ->sum('realisasi_waktu');
+
+        $menitlibnas = Libnas::whereMonth('libur_mulai', date('09')) //bulan ny ganti suai kebutuhan 'm'
+            ->whereYear('libur_mulai', date('Y'))
+            ->sum('libur_menitpengurangan');
 
         //kinerja menit
-        $jumenitkinerjasli = $jumenitkinerja + $menitlibnas;
+        $jumlahmenitkinerja = $menitkinerja + $menitlibnas;
 
         //hasil akhir //kinerja persen
-        $persentasekinerja = round(($jumenitkinerjasli*100)/6750,2);
+        $persentasekinerja = round(($jumlahmenitkinerja * 100) / 6750, 2);
 
         //tppTotal
-        $tppTotal = ($tunjanganasli + $persentasekinerja);
+        $tpptotal = ($tppasli + $persentasekinerja);
+
+        $data = Pegawai::where('pegawai_id', $user->id_user)
+            ->select('pegawai_id', 'pegawai_gambar', 'nama', 'nip', 'pegawai_pangkat', 'gol', 'jabatan', 'jabatan_baru', 'pegawai_email', 'pegawai_lhkpn', 'pegawai_skp', 'pegawai_pbb')
+            ->first();
 
         return response()->json([
             'status' => true,
-            'message' => 'Data Ditemukan',
-            'data' => $hari_kerja
+            'hari_ini' => $hariini,
+            'tpp' => $tpptotal,
+            'absensi_persentase' => $persentaseabsensi,
+            'absensi_jumlah' => $absensijumlah,
+            'kinerja_persen' => $persentasekinerja,
+            'kinerja_menit' => $jumlahmenitkinerja,
+            'pengurangan_persen' => $pengurangantotal,
+            'pengurangan_jumlah' => $penguranganjumlah,
+            'dd' => $sebulanlalu,
+            'data_pegawai' => $data
         ], 200);
-
     }
 }
