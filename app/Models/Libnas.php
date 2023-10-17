@@ -8,6 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 class Libnas extends Model
 {
     use HasFactory;
-    protected $table ='sintari_kalender_libur';
-    protected $primaryKey ='id_libur';
+    protected $table = 'sintari_kalender_libur';
+    protected $primaryKey = 'id_libur';
 }
